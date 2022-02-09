@@ -1,0 +1,8 @@
+userservice\model\User.class
+bookservice\model\Author.class
+bookservice\repository\AuthorRepository.class
+bookservice\repository\BookRepository.class
+userservice\repository\UserRepository.class
+bookservice\ApplicationBook.class
+userservice\Application.class
+bookservice\model\Book.class
