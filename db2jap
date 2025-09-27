@@ -1,0 +1,83 @@
+Perfect, let’s do a **Spring Data JPA repository with native queries + pagination** that works on **DB2/400 (DB2400Dialect)**.
+
+---
+
+## 1. Define the Repository
+
+Spring Data JPA allows you to use `@Query(nativeQuery = true)` **together with `Pageable`**. Hibernate will automatically inject pagination into your native query (using DB2/400-compatible `ROW_NUMBER()` under the hood when `DB2400Dialect` is set).
+
+```java
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+
+    // Example: Paginate employees by department
+    @Query(
+        value = "SELECT * FROM EMPLOYEE e WHERE e.DEPARTMENT = ?1",
+        countQuery = "SELECT COUNT(*) FROM EMPLOYEE e WHERE e.DEPARTMENT = ?1",
+        nativeQuery = true
+    )
+    Page<Employee> findByDepartment(String department, Pageable pageable);
+}
+```
+
+---
+
+## 2. Service Layer Example
+
+```java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+
+@Service
+public class EmployeeService {
+
+    @Autowired
+    private EmployeeRepository repository;
+
+    public Page<Employee> getEmployeesByDepartment(String dept, int pageNumber, int pageSize) {
+        return repository.findByDepartment(dept, PageRequest.of(pageNumber, pageSize));
+    }
+}
+```
+
+---
+
+## 3. Usage Example
+
+```java
+Page<Employee> page = employeeService.getEmployeesByDepartment("SALES", 0, 5);
+
+System.out.println("Total: " + page.getTotalElements());
+System.out.println("Pages: " + page.getTotalPages());
+
+page.getContent().forEach(System.out::println);
+```
+
+---
+
+## ⚡ Important Notes for DB2/400
+
+* `Pageable` only works with **both** `value` and `countQuery` defined in `@Query`.
+* Do **not** put `LIMIT`, `OFFSET`, or `FETCH NEXT` in your SQL — Hibernate adds DB2/400-safe pagination automatically.
+* Make sure dialect is correct:
+
+```properties
+spring.jpa.database-platform=org.hibernate.dialect.DB2400Dialect
+```
+
+---
+
+✅ With this setup, Spring Data JPA handles:
+
+* Injecting pagination (`ROW_NUMBER()` trick for DB2/400).
+* Running the `countQuery` to calculate total pages.
+
+---
+
+Would you like me to also show you a **pure native SQL approach** (manually writing the `ROW_NUMBER()` window function in your query), in case you want *full control* instead of relying on Spring Data’s pagination injection?
