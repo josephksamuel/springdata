@@ -1,3 +1,45 @@
+Perfect 👍 let’s wire up the custom `PageResult<T>` into the **service layer** so you can use it like Spring Data’s `Page<T>` — but in a way that works for **DB2 < 10.5** with `ROW_NUMBER()` pagination.
+
+---
+
+## 1. Repository with Native Query
+
+```java
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+
+    @Query(
+        value = "SELECT * FROM (" +
+                " SELECT e.*, ROW_NUMBER() OVER (ORDER BY e.ID) AS rn" +
+                " FROM EMPLOYEE e WHERE e.DEPARTMENT = :dept" +
+                ") sub WHERE rn BETWEEN :startRow AND :endRow",
+        nativeQuery = true
+    )
+    List<Employee> findByDepartmentPaged(
+        @Param("dept") String department,
+        @Param("startRow") int startRow,
+        @Param("endRow") int endRow
+    );
+
+    @Query(
+        value = "SELECT COUNT(*) FROM EMPLOYEE e WHERE e.DEPARTMENT = :dept",
+        nativeQuery = true
+    )
+    long countByDepartment(@Param("dept") String department);
+}
+```
+
+---
+
+## 2. The `PageResult<T>` Wrapper
+
+```java
+import java.util.List;
+
 public class PageResult<T> {
     private final List<T> content;
     private final long totalRows;
@@ -13,6 +55,69 @@ public class PageResult<T> {
 
     public List<T> getContent() { return content; }
     public long getTotalRows() { return totalRows; }
-    public long getTotalPages() { return (long) Math.ceil((double) totalRows / pageSize); }
-    public boolean isLastPage() { return pageNumber >= getTotalPages(); }
+    public int getPageNumber() { return pageNumber; }
+    public int getPageSize() { return pageSize; }
+
+    public long getTotalPages() {
+        return (long) Math.ceil((double) totalRows / pageSize);
+    }
+
+    public boolean isLastPage() {
+        return pageNumber >= getTotalPages();
+    }
 }
+```
+
+---
+
+## 3. Service Layer Example
+
+```java
+import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+
+@Service
+public class EmployeeService {
+
+    @Autowired
+    private EmployeeRepository repository;
+
+    public PageResult<Employee> getEmployeesByDepartment(
+            String department, int pageNumber, int pageSize) {
+
+        // Calculate row bounds
+        int startRow = (pageNumber - 1) * pageSize + 1;
+        int endRow   = pageNumber * pageSize;
+
+        // Fetch content and total count
+        List<Employee> employees = repository.findByDepartmentPaged(department, startRow, endRow);
+        long totalRows = repository.countByDepartment(department);
+
+        // Wrap into PageResult
+        return new PageResult<>(employees, totalRows, pageNumber, pageSize);
+    }
+}
+```
+
+---
+
+## 4. Usage Example (Controller or Test)
+
+```java
+PageResult<Employee> page = employeeService.getEmployeesByDepartment("SALES", 2, 10);
+
+System.out.println("Page: " + page.getPageNumber() + "/" + page.getTotalPages());
+System.out.println("Total records: " + page.getTotalRows());
+System.out.println("Is last page? " + page.isLastPage());
+
+page.getContent().forEach(System.out::println);
+```
+
+---
+
+✅ Now you have a **custom pagination wrapper** (`PageResult<T>`) that works with DB2’s `ROW_NUMBER()` pagination and can be used exactly like `Page<T>` in Spring Data.
+
+---
+
+👉 Would you like me to adapt `PageResult<T>` so it **implements Spring Data’s `Page<T>` interface**? That way you could plug it directly into code expecting a `Page<Employee>`.
