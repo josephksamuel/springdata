@@ -1,0 +1,18 @@
+public class PageResult<T> {
+    private final List<T> content;
+    private final long totalRows;
+    private final int pageNumber;
+    private final int pageSize;
+
+    public PageResult(List<T> content, long totalRows, int pageNumber, int pageSize) {
+        this.content = content;
+        this.totalRows = totalRows;
+        this.pageNumber = pageNumber;
+        this.pageSize = pageSize;
+    }
+
+    public List<T> getContent() { return content; }
+    public long getTotalRows() { return totalRows; }
+    public long getTotalPages() { return (long) Math.ceil((double) totalRows / pageSize); }
+    public boolean isLastPage() { return pageNumber >= getTotalPages(); }
+}
