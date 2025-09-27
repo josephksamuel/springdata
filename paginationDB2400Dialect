@@ -1,0 +1,52 @@
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
+import java.util.List;
+
+public class PaginationUtil {
+
+    public static <T> PageResult<T> paginate(
+            EntityManager em,
+            Class<T> entityClass,
+            String orderByField,
+            int pageNumber,
+            int pageSize) {
+
+        // --- Main query ---
+        String jpql = "SELECT e FROM " + entityClass.getSimpleName() + " e ORDER BY e." + orderByField;
+        TypedQuery<T> query = em.createQuery(jpql, entityClass);
+
+        query.setFirstResult((pageNumber - 1) * pageSize);
+        query.setMaxResults(pageSize);
+
+        List<T> results = query.getResultList();
+
+        // --- Count query ---
+        String countJpql = "SELECT COUNT(e) FROM " + entityClass.getSimpleName() + " e";
+        Long totalCount = em.createQuery(countJpql, Long.class).getSingleResult();
+
+        return new PageResult<>(results, totalCount, pageNumber, pageSize);
+    }
+
+    // Helper class for returning results
+    public static class PageResult<T> {
+        private final List<T> content;
+        private final long totalElements;
+        private final int pageNumber;
+        private final int pageSize;
+
+        public PageResult(List<T> content, long totalElements, int pageNumber, int pageSize) {
+            this.content = content;
+            this.totalElements = totalElements;
+            this.pageNumber = pageNumber;
+            this.pageSize = pageSize;
+        }
+
+        public List<T> getContent() { return content; }
+        public long getTotalElements() { return totalElements; }
+        public int getPageNumber() { return pageNumber; }
+        public int getPageSize() { return pageSize; }
+        public long getTotalPages() {
+            return (long) Math.ceil((double) totalElements / pageSize);
+        }
+    }
+}
